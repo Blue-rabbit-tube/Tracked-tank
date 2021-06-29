@@ -1,0 +1,220 @@
+C51 COMPILER V9.59.0.0   MAIN                                                              10/27/2019 22:23:18 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          #include "STC8.H"
+   2          #include "intrins.h"
+   3          
+   4          unsigned char tmp2;
+   5          int pwmleft=0;
+   6          //int pwmright=0;
+   7          int mode=0;
+   8          /**********************************************************
+   9          *定时中断
+  10          ***********************************************************/
+  11          void clock()
+  12          {
+  13   1      TMOD=0x00;
+  14   1      TH0=0x97;
+  15   1      TL0=0xbb;
+  16   1      TR0=1;
+  17   1      ET0=1;
+  18   1      EA=1;
+  19   1      }
+  20          /**********************************************************
+  21          *io配置
+  22          ***********************************************************/
+  23          void io()
+  24          {
+  25   1      P3M0=0x00;
+  26   1      P3M1=0x00;
+  27   1      }
+  28          
+  29          /**********************************************************
+  30          *串口部分处理
+  31          ***********************************************************/
+  32          
+  33          #define FOSC 27000000L        //MUC主频为27mhz下
+  34          #define BAUD 9600         //串口2产生的波特率为9600
+  35          #define TM  (65536-(FOSC/4/BAUD)) //计算初值
+  36          
+  37          //串口2
+  38          //串口2初始化操作 
+  39          
+  40          
+  41          void uart2_init() 
+  42           {
+  43   1      
+  44   1       S2CON = 0x50;       //REN=1允许串行接受状态，串口工作模式2                        
+  45   1        T2L=TM;       //配置串口2波特率  初始值
+  46   1        T2H=TM>>8;                    
+  47   1        AUXR=0X14;      //开启定时器T2  并且开启1T模式
+  48   1        IE2=0X01;           //串口2中断使能                                                           
+  49   1        EA   = 1;           // 开总中断 
+  50   1      }
+  51          
+  52          void uart2_send()
+  53          {
+  54   1          ES= 0;
+  55   1      
+C51 COMPILER V9.59.0.0   MAIN                                                              10/27/2019 22:23:18 PAGE 2   
+
+  56   1             
+  57   1        //发送数据
+  58   1        S2BUF=0x33;           //发送0x0a
+  59   1        while(S2CON&S2TI==0);       // 等特数据传送 (S2TI发送中断标志)
+  60   1        S2CON&=~S2TI;           //清标志位
+  61   1           
+  62   1           
+  63   1      
+  64   1          }   
+  65          
+  66          
+  67          void uart2_receive() interrupt 8 using 2
+  68          {
+  69   1        if(S2CON&S2RI)            //如果收到数据 S2RI置位
+  70   1        {
+  71   2         tmp2= S2BUF; 
+  72   2         S2CON&=~S2RI;            //清标志位  
+  73   2        }
+  74   1      }
+  75          
+  76          
+  77          /*主函数入口*/
+  78          void main()
+  79            { 
+  80   1          unsigned char dongzuo;
+  81   1          int finish;
+  82   1          uart2_init();             //串口2初始化
+  83   1          finish=0;
+  84   1          clock();                  //定时器初始化
+  85   1          io();                     //io初始化
+  86   1          while(1)
+  87   1          {
+  88   2          dongzuo=tmp2;
+  89   2        if(dongzuo=='a')  //up
+  90   2        {
+  91   3          mode=1;
+  92   3        //  P32=1,P33=0;
+  93   3          P34=1,P35=0;
+  94   3          finish=1;
+  95   3          }
+  96   2       else if (dongzuo=='b')   //back
+  97   2        {
+  98   3          mode=2;
+  99   3          P32=0,P33=1;
+ 100   3          //P34=0,P35=1;
+ 101   3          finish=1;
+ 102   3        }
+ 103   2       else if (dongzuo=='d')  //right
+ 104   2        { 
+ 105   3          mode=4;
+ 106   3        //  P32=1,P33=0;
+ 107   3      //  P34=0,P35=1;
+ 108   3          finish=1;
+ 109   3        }
+ 110   2       else if (dongzuo=='c')   //left
+ 111   2        {
+ 112   3          mode=3;
+ 113   3        //  P32=0,P33=1;
+ 114   3          //P34=1,P35=0;
+ 115   3          finish=1;
+ 116   3          }
+ 117   2        
+C51 COMPILER V9.59.0.0   MAIN                                                              10/27/2019 22:23:18 PAGE 3   
+
+ 118   2        else if (dongzuo=='e')    //stop
+ 119   2        {
+ 120   3          mode=0;
+ 121   3          P32=0,P33=0;
+ 122   3          P34=0,P35=0;
+ 123   3          finish=1;
+ 124   3          }
+ 125   2        
+ 126   2        if(finish==1)
+ 127   2        {
+ 128   3         tmp2=0x00;
+ 129   3          }
+ 130   2         finish=0;
+ 131   2      }
+ 132   1      }
+ 133          
+ 134          void pwm() interrupt 1
+ 135          {
+ 136   1        
+ 137   1        if (mode==1)
+ 138   1        {
+ 139   2          pwmleft++;
+ 140   2        //  pwmright++;
+ 141   2          if (pwmleft<=40)        //调参警告
+ 142   2          P32=1,P33=0;
+ 143   2          if (pwmleft>40&&pwmleft<=45)
+ 144   2            P32=0,P33=0;
+ 145   2            if (pwmleft>45)
+ 146   2              pwmleft=0;
+ 147   2        }
+ 148   1        if (mode==2)              //调参警告
+ 149   1        {
+ 150   2          pwmleft++;
+ 151   2           if (pwmleft<=40)       //调参警告
+ 152   2        P34=0,P35=1;
+ 153   2          if (pwmleft>40&&pwmleft<=45)
+ 154   2          P34=0,P35=0;
+ 155   2            if (pwmleft>45)
+ 156   2              pwmleft=0;
+ 157   2        }
+ 158   1        if(mode==3)
+ 159   1        {
+ 160   2          pwmleft++;
+ 161   2           if (pwmleft<=5)       //调参警告
+ 162   2           {P32=0,P33=1;
+ 163   3          P34=1,P35=0;}
+ 164   2          if (pwmleft>5&&pwmleft<=7)
+ 165   2          {P32=0,P33=0;
+ 166   3            P34=0,P35=0;}
+ 167   2            if (pwmleft>7)
+ 168   2              pwmleft=0;
+ 169   2        }
+ 170   1        if(mode==4)
+ 171   1        {
+ 172   2          pwmleft++;
+ 173   2           if (pwmleft<=5)       //调参警告
+ 174   2           {P32=1,P33=0;
+ 175   3            P34=0,P35=1;}
+ 176   2          if (pwmleft>5&&pwmleft<=7)
+ 177   2          {P32=0,P33=0;
+ 178   3            P34=0,P35=0;}
+ 179   2            if (pwmleft>7)
+C51 COMPILER V9.59.0.0   MAIN                                                              10/27/2019 22:23:18 PAGE 4   
+
+ 180   2              pwmleft=0;
+ 181   2        }
+ 182   1          if(mode==0)
+ 183   1          {
+ 184   2            pwmleft=0;
+ 185   2          //  pwmright=0;
+ 186   2          }
+ 187   1      
+ 188   1      }
+ 189          
+ 190          
+ 191          //简易版，稳定可用
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    522    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      5    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
